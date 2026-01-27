@@ -71,6 +71,28 @@ contract RebaseToken is ERC20 {
     }
 
     /**
+     * @notice Get the principle balance of a user. This is the number of tokens that have currently been minted to the user, not including any interest that has accrued since the last time the user interact with protocol.
+     * @param _user The user to get the principle balance for
+     * @return The principle balance of the user
+     */
+    function principleBalanceOf(address _user) external view returns (uint256) {
+        return super.balanceOf(_user);
+    }
+
+    /**
+     * @notice Burn the user tokens when they withdraw from the vault
+     * @param _from The user to burn the tokens from
+     * @param _amount The amount of tokens to burn
+     */
+    function burn(address _from, uint256 _amount) external {
+        if (_amount == type(uint256).max) {
+            _amount = balanceOf(_from);
+        }
+        _mintAccruedInterest(_from);
+        _burn(_from, _amount);
+    }
+
+    /**
      * calculate the balance for the user including the interest that has accumulated since the last update
      * (principle balance) + some interest that has accrued
      * @param _user The user to calculate the balance for
@@ -80,6 +102,43 @@ contract RebaseToken is ERC20 {
         // get the current principle balance of the user (the numbers of token that have actually been minted to the user)
         // multiply the principle balance by the interest that has accumulated in the time since the balance was last updated
         return super.balanceOf(_user) * _calculateUserAccumulatedInterestSinceLastUpdate(_user) / PRECISION_FACTOR;
+    }
+
+    /**
+     * @notice Transfer tokens from one user to another
+     * @param _recipient The user to transfer tokens to
+     * @param _amount The amount of tokens to transfer
+     * @return True if the transfer was successful
+     */
+    function transfer(address _recipient, uint256 _amount) public override returns (bool) {
+        _mintAccruedInterest(msg.sender);
+        _mintAccruedInterest(_recipient);
+        if (_amount == type(uint256).max) {
+            _amount = balanceOf(msg.sender);
+        }
+        if (balanceOf(_recipient) == 0) {
+            s_userInterestRate[_recipient] = s_userInterestRate[msg.sender];
+        }
+        super.transfer(_recipient, _amount);
+    }
+
+    /**
+     * @notice Transfer tokens from one user to another
+     * @param _sender The user to transfer the tokens from
+     * @param _recipient The user to transfer the tokens to
+     * @param _amount The amount of tokens to transfer
+     * @return True if the transfer was successful
+     */
+    function transferFrom(address _sender, address _recipient, uint256 _amount) public override returns (bool) {
+        _mintAccruedInterest(_sender);
+        _mintAccruedInterest(_recipient);
+        if (_amount == type(uint256).max) {
+            _amount = balanceOf(_sender);
+        }
+        if (balanceOf(_recipient) == 0) {
+            s_userInterestRate[_recipient] = s_userInterestRate[_sender];
+        }
+        super.transfer(_recipient, _amount);
     }
 
     /**
@@ -105,13 +164,29 @@ contract RebaseToken is ERC20 {
         return linearInterest;
     }
 
+    /**
+     * @notice Mint the accrued interest to the user since the last time they interact with the protocol (e.g. burn, mint, transfer)
+     * @param _user The user to mint the accrued interest to
+     */
     function _mintAccruedInterest(address _user) internal {
         // (1) find their current balance of rebase tokens that have been minted to the user -> principle
+        uint256 previousPrincipleBalance = super.balanceOf(_user);
         // (2) calculate their current balance including their interest -> balanceOf
+        uint256 currentBalance = balanceOf(_user);
         // calculate the number of tokens that need to be minted to the user -> (2) - (1)
+        uint256 balanceIncrease = currentBalance - previousPrincipleBalance;
         // call _mint to mint the tokens to the user
         // set the user last updated timestamp
         s_userLastUpdatedTimestamp[_user] = block.timestamp;
+        _mint(_user, balanceIncrease);
+    }
+
+    /**
+     * @notice get the interest rate for the contract. Any future depositors will receive this interest rate
+     * @return s_interestRate The interest rate for the contract
+     */
+    function getInterestRate() external view returns (uint256) {
+        return s_interestRate;
     }
 
     /*
