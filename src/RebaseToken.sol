@@ -39,7 +39,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
 
     uint256 private constant PRECISION_FACTOR = 1e18;
     bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
-    uint256 private s_interestRate = 5e10;
+    uint256 private s_interestRate = (5 * PRECISION_FACTOR) / 1e8; // 10^-8 == 1/10^8
     mapping(address => uint256) private s_userInterestRate;
     mapping(address => uint256) private s_userLastUpdatedTimestamp;
 
@@ -59,7 +59,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
     function setInterestRate(uint256 _newInterestRate) external onlyOwner {
         // set the interest rate
 
-        if (_newInterestRate > s_interestRate) {
+        if (_newInterestRate >= s_interestRate) {
             revert RebaseToken__InterestRateCanOnlyDecrease(s_interestRate, _newInterestRate);
         }
         s_interestRate = _newInterestRate;
@@ -92,9 +92,6 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
      * @param _amount The amount of tokens to burn
      */
     function burn(address _from, uint256 _amount) external onlyRole(MINT_AND_BURN_ROLE) {
-        if (_amount == type(uint256).max) {
-            _amount = balanceOf(_from);
-        }
         _mintAccruedInterest(_from);
         _burn(_from, _amount);
     }
@@ -108,7 +105,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
     function balanceOf(address _user) public view override returns (uint256) {
         // get the current principle balance of the user (the numbers of token that have actually been minted to the user)
         // multiply the principle balance by the interest that has accumulated in the time since the balance was last updated
-        return super.balanceOf(_user) * _calculateUserAccumulatedInterestSinceLastUpdate(_user) / PRECISION_FACTOR;
+        return super.balanceOf(_user) * _calculateUserAccumlatedInterestSinceLastUpdated(_user) / PRECISION_FACTOR;
     }
 
     /**
@@ -145,13 +142,13 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
         if (balanceOf(_recipient) == 0) {
             s_userInterestRate[_recipient] = s_userInterestRate[_sender];
         }
-        super.transfer(_recipient, _amount);
+        super.transferFrom(_sender, _recipient, _amount);
     }
 
     /**
      * @notice Calculate the interest that has accumlated since the last updated
      * @param _user The user to calculate the interest accumlated for
-     * @return The interest that has accumlated since the last update
+     * @return linearInterest interest that has accumlated since the last update
      */
     function _calculateUserAccumlatedInterestSinceLastUpdated(address _user)
         internal
@@ -203,5 +200,13 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
     */
     function getUserInterestRate(address _user) external view returns (uint256) {
         return s_userInterestRate[_user];
+    }
+
+    function approve(address spender, uint256 value) public override returns (bool) {
+        return super.approve(spender, value);
+    }
+
+    function getOwner() external view returns (address) {
+        return owner();
     }
 }
