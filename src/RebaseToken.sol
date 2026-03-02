@@ -164,8 +164,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
         // deposit: 10 tokens, interest rate: 0.5 tokens per token per second, time elapsed is 2 seconds
         // 10 + (10 * 0.5 * 2) = 10 + 10 = 20
         uint256 timeElapsed = block.timestamp - s_userLastUpdatedTimestamp[_user];
-        uint256 linearInterest = (PRECISION_FACTOR + s_userInterestRate[_user] * timeElapsed);
-        return linearInterest;
+        linearInterest = (PRECISION_FACTOR + s_userInterestRate[_user] * timeElapsed);
     }
 
     /**
