@@ -123,7 +123,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
         if (balanceOf(_recipient) == 0) {
             s_userInterestRate[_recipient] = s_userInterestRate[msg.sender];
         }
-        super.transfer(_recipient, _amount);
+        return super.transfer(_recipient, _amount);
     }
 
     /**
@@ -142,7 +142,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
         if (balanceOf(_recipient) == 0) {
             s_userInterestRate[_recipient] = s_userInterestRate[_sender];
         }
-        super.transferFrom(_sender, _recipient, _amount);
+        return super.transferFrom(_sender, _recipient, _amount);
     }
 
     /**

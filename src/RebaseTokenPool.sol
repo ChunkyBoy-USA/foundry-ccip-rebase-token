@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {TokenPool} from "lib/ccip/contracts/src/v0.8/ccip/pools/TokenPool.sol";
-import {Pool} from "lib/ccip/contracts/src/v0.8/ccip/libraries/Pool.sol";
-import {IERC20} from "lib/ccip/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
+import {TokenPool, IERC20} from "lib/chainlink-ccip/chains/evm/contracts/pools/TokenPool.sol";
+import {Pool} from "lib/chainlink-ccip/chains/evm/contracts/libraries/Pool.sol";
 import {IRebaseToken} from "src/interfaces/IRebaseToken.sol";
 
 contract RebaseTokenPool is TokenPool {
     constructor(IERC20 _token, address[] memory _allowList, address _rmnProxy, address _router)
-        TokenPool(_token, _allowList, _rmnProxy, _router)
+        TokenPool(_token, 18, _allowList, _rmnProxy, _router)
     {}
 
     function lockOrBurn(Pool.LockOrBurnInV1 calldata lockOrBurnIn)
-        external
+        public virtual override 
         returns (Pool.LockOrBurnOutV1 memory lockOrBurnOut)
     {
         _validateLockOrBurn(lockOrBurnIn);
@@ -25,15 +24,15 @@ contract RebaseTokenPool is TokenPool {
     }
 
     function releaseOrMint(Pool.ReleaseOrMintInV1 calldata releaseOrMintIn)
-        external
+        public virtual override
         returns (Pool.ReleaseOrMintOutV1 memory)
     {
-        _validateReleaseOrMint(releaseOrMintIn);
+        _validateReleaseOrMint(releaseOrMintIn, releaseOrMintIn.sourceDenominatedAmount);
         uint256 userInterestRate = abi.decode(releaseOrMintIn.sourcePoolData, (uint256));
-        IRebaseToken(address(i_token)).mint(releaseOrMintIn.receiver, releaseOrMintIn.amount, userInterestRate);
+        IRebaseToken(address(i_token)).mint(releaseOrMintIn.receiver, releaseOrMintIn.sourceDenominatedAmount, userInterestRate);
 
         return Pool.ReleaseOrMintOutV1({
-            destinationAmount: releaseOrMintIn.amount
+            destinationAmount: releaseOrMintIn.sourceDenominatedAmount
         });
     }
 }
