@@ -21,7 +21,7 @@ contract ConfigurePoolScirpt is Script {
     ) public {
         vm.startBroadcast();
         TokenPool.ChainUpdate[] memory chainsToAdd = new TokenPool.ChainUpdate[](1);
-        byte[] memory remotePoolAddresses = new byte[](1);
+        bytes[] memory remotePoolAddresses = new bytes[](1);
         remotePoolAddresses[0] = abi.encode(remotePool);
         // struct ChainUpdate {
         //     uint64 remoteChainSelector; // Remote chain selector
@@ -37,12 +37,12 @@ contract ConfigurePoolScirpt is Script {
             outboundRateLimiterConfig: RateLimiter.Config({
                 isEnabled: outboundRateLimiterIsEnabled,
                 capacity: outboundRateLimiterCapacity,
-                refillRate: outboundRateLimiterRate
+                rate: outboundRateLimiterRate
             }),
             inboundRateLimiterConfig: RateLimiter.Config({
                 isEnabled: inboundRateLimiterIsEnabled,
                 capacity: inboundRateLimiterCapacity,
-                refillRate: inboundRateLimiterRate  
+                rate: inboundRateLimiterRate  
             })
         });
 
