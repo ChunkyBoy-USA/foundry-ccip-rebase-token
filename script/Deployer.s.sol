@@ -4,11 +4,30 @@ pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
 import {Vault} from "src/Vault.sol";
+import {RebaseToken} from "src/RebaseToken.sol";
+import {RebaseTokenPool} from "src/RebaseTokenPool.sol";
+import {CCIPLocalSimulatorFork, Register, IERC20} from "lib/chainlink-local/src/ccip/CCIPLocalSimulatorFork.sol";
+import {
+    RegistryModuleOwnerCustom
+} from "lib/chainlink-ccip/chains/evm/contracts/tokenAdminRegistry/RegistryModuleOwnerCustom.sol";
+import {TokenAdminRegistry} from "lib/chainlink-ccip/chains/evm/contracts/tokenAdminRegistry/TokenAdminRegistry.sol";
+
 
 import {IRebaseToken} from "src/interfaces/IRebaseToken.sol";
 
 contract TokenAndPoolDeployer is Script {
-
+    function run() public returns (RebaseToken token, RebaseTokenPool pool) {
+        CCIPLocalSimulatorFork ccipLocalSimulatorFork = new CCIPLocalSimulatorFork();
+        Register.NetworkDetails memory networkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid);
+        vm.startBroadcast();
+        token = new RebaseToken();
+        pool = new RebaseTokenPool(IERC20(address(token)), new address[](0), networkDetails.rmnProxyAddress, networkDetails.routerAddress);
+        token.grantMintAndBurnRole(address(pool));
+        RegistryModuleOwnerCustom(networkDetails.registryModuleOwnerCustomAddress).registerAdminViaOwner(address(token));
+        TokenAdminRegistry(networkDetails.tokenAdminRegistryAddress).acceptAdminRole(address(token));
+        TokenAdminRegistry(networkDetails.tokenAdminRegistryAddress).setPool(address(token), address(pool));
+        vm.stopBroadcast();
+    }
 }
 
 contract VaultDeployer is Script {
