@@ -6,7 +6,7 @@ import {TokenPool, IERC20} from "lib/chainlink-ccip/chains/evm/contracts/pools/T
 import {RateLimiter} from "lib/chainlink-ccip/chains/evm/contracts/libraries/RateLimiter.sol";
 
 
-contract ConfigurePoolScirpt is Script {
+contract ConfigurePoolScript is Script {
     function run(
         address localPool,
         uint64 remoteChainSelector,

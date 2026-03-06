@@ -10,7 +10,7 @@ import {TokenPool, IERC20} from "lib/chainlink-ccip/chains/evm/contracts/pools/T
 
 
 contract BridgeTokensScript is Script {
-    function run(address linkTokenAddress, uint256 amountToSend, address tokenToSendAddress, address receiverAddress, uint64 destinationChainSelector, address routerAddress) public {
+    function run(address receiverAddress, address linkTokenAddress, uint64 destinationChainSelector, address tokenToSendAddress, uint256 amountToSend, address routerAddress) public {
         vm.startBroadcast();
 
         
