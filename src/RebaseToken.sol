@@ -21,7 +21,7 @@
 // private
 // view & pure functions
 
-pragma solidity 0.8.24;
+pragma solidity ^0.8.24;
 
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
@@ -70,10 +70,15 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
      * @notice Mint the user tokens when they deposit into the vault
      * @param _to The user to mint tokens to
      * @param _amount The amount of tokens to mint
+     * @param _userInterestRate The interest rate for the user
      */
     function mint(address _to, uint256 _amount, uint256 _userInterestRate) external onlyRole(MINT_AND_BURN_ROLE) {
         _mintAccruedInterest(_to);
-        s_userInterestRate[_to] = _userInterestRate;
+        // Only set the interest rate if the user doesn't already have one (first time)
+        // or if they're receiving tokens from a cross-chain transfer
+        if (s_userInterestRate[_to] == 0) {
+            s_userInterestRate[_to] = _userInterestRate;
+        }
         _mint(_to, _amount);
     }
 

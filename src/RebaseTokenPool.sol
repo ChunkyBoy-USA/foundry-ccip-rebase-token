@@ -28,7 +28,14 @@ contract RebaseTokenPool is TokenPool {
         returns (Pool.ReleaseOrMintOutV1 memory)
     {
         _validateReleaseOrMint(releaseOrMintIn, releaseOrMintIn.sourceDenominatedAmount);
-        uint256 userInterestRate = abi.decode(releaseOrMintIn.sourcePoolData, (uint256));
+        // Decode the user's interest rate from the source pool's lockOrBurn function
+        uint256 userInterestRate = 0;
+        if (releaseOrMintIn.sourcePoolData.length > 0) {
+            userInterestRate = abi.decode(releaseOrMintIn.sourcePoolData, (uint256));
+        } else {
+            // Fallback: use the current global interest rate if no data provided
+            userInterestRate = IRebaseToken(address(i_token)).getInterestRate();
+        }
         IRebaseToken(address(i_token)).mint(releaseOrMintIn.receiver, releaseOrMintIn.sourceDenominatedAmount, userInterestRate);
 
         return Pool.ReleaseOrMintOutV1({

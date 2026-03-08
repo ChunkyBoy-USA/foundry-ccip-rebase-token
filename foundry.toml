@@ -2,9 +2,12 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-via_ir = true # This enables IR (Intermediate Representation) code generation in the Solidity compiler, which optimizes the stack allocation much better than the default code generation and can handle functions with deeper stacks
 rpc_endpoints = { eth = "https://eth-sepolia.g.alchemy.com/v2/6dWSSrHidtXsRg2VcHlfy", arb = "https://arb-sepolia.g.alchemy.com/v2/6dWSSrHidtXsRg2VcHlfy", zksync = "https://zksync-sepolia.g.alchemy.com/v2/6dWSSrHidtXsRg2VcHlfy"}
 
 [profile.default.zksync]
 compile = true
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+
+[profile.solx]
+solc_version = "/Users/jimmyma/foundry-f23/solx-macosx-v0.1.3"
