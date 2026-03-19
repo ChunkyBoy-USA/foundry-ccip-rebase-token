@@ -143,7 +143,9 @@ contract CrossChainTest is Test {
         Register.NetworkDetails memory localNetworkDetails,
         Register.NetworkDetails memory remoteNetworkDetails,
         RebaseToken localToken,
-        RebaseToken remoteToken
+        RebaseToken remoteToken,
+        RebaseTokenPool localPool,
+        RebaseTokenPool remotePool
     ) public {
         vm.selectFork(localFork);
         // struct EVM2AnyMessage {
@@ -165,32 +167,48 @@ contract CrossChainTest is Test {
         });
         uint256 fee =
             IRouterClient(localNetworkDetails.routerAddress).getFee(remoteNetworkDetails.chainSelector, message);
-        console.log("fee: ", fee);
+        // console.log("fee: ", fee);
         ccipLocalSimulatorFork.requestLinkFromFaucet(user, fee);
         vm.prank(user);
         IERC20(localNetworkDetails.linkAddress).approve(localNetworkDetails.routerAddress, fee);
         vm.prank(user);
         IERC20(address(localToken)).approve(localNetworkDetails.routerAddress, amountToBridge);
+
         uint256 balanceBefore = localToken.balanceOf(user);
+        uint256 localUserInterestRate = localToken.getUserInterestRate(user);
+
+        // On the source chain, we expect a `LockOrBurnDebug` event from the local pool.
+        vm.expectEmit(true, true, true, true, address(localPool));
+        emit RebaseTokenPool.LockOrBurnDebug(user, amountToBridge, localUserInterestRate, abi.encode(localUserInterestRate));
+
         vm.prank(user);
         IRouterClient(localNetworkDetails.routerAddress).ccipSend(remoteNetworkDetails.chainSelector, message);
         uint256 balanceAfter = localToken.balanceOf(user);
         assertEq(balanceAfter, balanceBefore - amountToBridge);
-        uint256 localUserInterestRate = localToken.getUserInterestRate(user);
 
         vm.selectFork(remoteFork);
         vm.warp(block.timestamp + 20 minutes);
         uint256 remoteBalanceBefore = remoteToken.balanceOf(user);
-        console.log("remoteBalanceBefore: ", remoteBalanceBefore);
-        vm.selectFork(localFork);
+        // console.log("remoteBalanceBefore: ", remoteBalanceBefore);
+
+        // On the destination chain, we expect a `ReleaseOrMintDebug` event from the remote pool.
+        // The user's interest rate from the source chain is passed in the message.
+        // The length of sourcePoolData is 32 bytes for a single uint256.
+        vm.expectEmit(true, true, true, true, address(remotePool));
+        emit RebaseTokenPool.ReleaseOrMintDebug(user, amountToBridge, localUserInterestRate, 32);
+
+        // The simulator will route the message on the currently selected fork (remoteFork).
         ccipLocalSimulatorFork.switchChainAndRouteMessage(remoteFork);
 
+        // After the message is routed, we are still on the remoteFork.
         uint256 remoteBalanceAfter = remoteToken.balanceOf(user);
-        console.log("remoteBalanceAfter: ", remoteBalanceBefore);
-        console.log("amountToBridge: ", amountToBridge);
+        // console.log("remoteBalanceAfter: ", remoteBalanceBefore);
+        // console.log("amountToBridge: ", amountToBridge);
         assertEq(remoteBalanceAfter, (remoteBalanceBefore + amountToBridge));
-        uint256 remoteUserInterestRate = remoteToken.getUserInterestRate(user);
-        assertEq(localUserInterestRate, remoteUserInterestRate);
+
+        // The user's interest rate on the remote chain should now be set to what it was on the source chain.
+        uint256 remoteUserInterestRateAfter = remoteToken.getUserInterestRate(user);
+        assertEq(localUserInterestRate, remoteUserInterestRateAfter);
     }
 
     function testBridgeAllTokens() public {
@@ -199,10 +217,24 @@ contract CrossChainTest is Test {
         vm.prank(user);
         Vault(payable(address(vault))).deposit{value: SEND_VALUE}();
         assertEq(sepoliaToken.balanceOf(user), SEND_VALUE);
-        bridgeTokens(SEND_VALUE, sepoliaFork, arbSepoliaFork, sepoliaNetworkDetails, arbSepoliaNetworkDetails, sepoliaToken, arbSepoliaToken);
+        bridgeTokens(
+            SEND_VALUE,
+            sepoliaFork,
+            arbSepoliaFork,
+            sepoliaNetworkDetails,
+            arbSepoliaNetworkDetails,
+            sepoliaToken,
+            arbSepoliaToken,
+            sepoliaPool,
+            arbSepoliaPool
+        );
 
         vm.selectFork(arbSepoliaFork);
         vm.warp(block.timestamp + 20 minutes);
-        bridgeTokens(arbSepoliaToken.balanceOf(user), arbSepoliaFork, sepoliaFork, arbSepoliaNetworkDetails, sepoliaNetworkDetails, arbSepoliaToken, sepoliaToken);
+        uint256 amountToBridgeBack = arbSepoliaToken.balanceOf(user);
+        bridgeTokens(
+            amountToBridgeBack, arbSepoliaFork, sepoliaFork, arbSepoliaNetworkDetails, sepoliaNetworkDetails,
+            arbSepoliaToken, sepoliaToken, arbSepoliaPool, sepoliaPool
+        );
     }
 }

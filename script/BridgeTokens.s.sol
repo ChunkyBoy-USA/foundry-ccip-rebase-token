@@ -31,10 +31,10 @@ contract BridgeTokensScript is Script {
         // which becomes sourcePoolData on the destination pool's releaseOrMint call.
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
             receiver: abi.encode(receiverAddress),
-            data: "",
+            data: abi.encode("Test Cross Chain Message"), // This can be any data you want to send to the destination chain. The destination chain's pool can decode this data in its releaseOrMint function.
             tokenAmounts: tokenAmounts,
             feeToken: linkTokenAddress,
-            extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({ gasLimit: 200_000 }))
+            extraArgs: Client._argsToBytes(Client.GenericExtraArgsV2({ gasLimit: 1000_000, allowOutOfOrderExecution: true }))
         });
         uint256 ccipFee = IRouterClient(routerAddress).getFee(destinationChainSelector, message);
         IERC20(linkTokenAddress).approve(routerAddress, ccipFee);

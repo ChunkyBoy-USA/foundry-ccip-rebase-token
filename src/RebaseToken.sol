@@ -39,13 +39,13 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
 
     uint256 private constant PRECISION_FACTOR = 1e18;
     bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
-    uint256 private s_interestRate = (5 * PRECISION_FACTOR) / 1e8; // 10^-8 == 1/10^8
+    uint256 private s_interestRate = 5e10; // (5 * PRECISION_FACTOR) / 1e8; // 10^-8 == 1/10^8
     mapping(address => uint256) private s_userInterestRate;
     mapping(address => uint256) private s_userLastUpdatedTimestamp;
 
     event InterestRateSet(uint256 newInterestRate);
 
-    constructor() ERC20("Rebase Token", "RBT") Ownable(msg.sender) {}
+    constructor() Ownable(msg.sender) ERC20("Rebase Token", "RBT")  {}
 
     function grantMintAndBurnRole(address _account) external onlyOwner {
         _grantRole(MINT_AND_BURN_ROLE, _account);
@@ -72,13 +72,11 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
      * @param _amount The amount of tokens to mint
      * @param _userInterestRate The interest rate for the user
      */
-    function mint(address _to, uint256 _amount, uint256 _userInterestRate) external onlyRole(MINT_AND_BURN_ROLE) {
+    function mint(address _to, uint256 _amount, uint256 _userInterestRate) public onlyRole(MINT_AND_BURN_ROLE) {
         _mintAccruedInterest(_to);
         // Only set the interest rate if the user doesn't already have one (first time)
         // or if they're receiving tokens from a cross-chain transfer
-        if (s_userInterestRate[_to] == 0) {
-            s_userInterestRate[_to] = _userInterestRate;
-        }
+        s_userInterestRate[_to] = _userInterestRate;
         _mint(_to, _amount);
     }
 
@@ -96,7 +94,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
      * @param _from The user to burn the tokens from
      * @param _amount The amount of tokens to burn
      */
-    function burn(address _from, uint256 _amount) external onlyRole(MINT_AND_BURN_ROLE) {
+    function burn(address _from, uint256 _amount) public onlyRole(MINT_AND_BURN_ROLE) {
         _mintAccruedInterest(_from);
         _burn(_from, _amount);
     }
@@ -110,7 +108,11 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
     function balanceOf(address _user) public view override returns (uint256) {
         // get the current principle balance of the user (the numbers of token that have actually been minted to the user)
         // multiply the principle balance by the interest that has accumulated in the time since the balance was last updated
-        return super.balanceOf(_user) * _calculateUserAccumlatedInterestSinceLastUpdated(_user) / PRECISION_FACTOR;
+        uint256 currentPrincipalBalance = super.balanceOf(_user);
+        if (currentPrincipalBalance == 0) {
+            return 0;
+        }
+        return (currentPrincipalBalance * _calculateUserAccumlatedInterestSinceLastUpdated(_user)) / PRECISION_FACTOR;
     }
 
     /**
@@ -120,11 +122,11 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
      * @return True if the transfer was successful
      */
     function transfer(address _recipient, uint256 _amount) public override returns (bool) {
-        _mintAccruedInterest(msg.sender);
-        _mintAccruedInterest(_recipient);
         if (_amount == type(uint256).max) {
             _amount = balanceOf(msg.sender);
         }
+        _mintAccruedInterest(msg.sender);
+        _mintAccruedInterest(_recipient);
         if (balanceOf(_recipient) == 0) {
             s_userInterestRate[_recipient] = s_userInterestRate[msg.sender];
         }
@@ -139,11 +141,12 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
      * @return True if the transfer was successful
      */
     function transferFrom(address _sender, address _recipient, uint256 _amount) public override returns (bool) {
-        _mintAccruedInterest(_sender);
-        _mintAccruedInterest(_recipient);
         if (_amount == type(uint256).max) {
             _amount = balanceOf(_sender);
         }
+        _mintAccruedInterest(_sender);
+        _mintAccruedInterest(_recipient);
+        
         if (balanceOf(_recipient) == 0) {
             s_userInterestRate[_recipient] = s_userInterestRate[_sender];
         }
@@ -169,7 +172,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
         // deposit: 10 tokens, interest rate: 0.5 tokens per token per second, time elapsed is 2 seconds
         // 10 + (10 * 0.5 * 2) = 10 + 10 = 20
         uint256 timeElapsed = block.timestamp - s_userLastUpdatedTimestamp[_user];
-        linearInterest = (PRECISION_FACTOR + s_userInterestRate[_user] * timeElapsed);
+        linearInterest = (s_userInterestRate[_user] * timeElapsed) + PRECISION_FACTOR;
     }
 
     /**
@@ -185,8 +188,8 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
         uint256 balanceIncrease = currentBalance - previousPrincipleBalance;
         // call _mint to mint the tokens to the user
         // set the user last updated timestamp
-        s_userLastUpdatedTimestamp[_user] = block.timestamp;
         _mint(_user, balanceIncrease);
+        s_userLastUpdatedTimestamp[_user] = block.timestamp;
     }
 
     /**
